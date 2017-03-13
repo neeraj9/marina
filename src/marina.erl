@@ -4,6 +4,7 @@
 -export([
     async_execute/4,
     async_execute/5,
+    async_execute/6,
     async_prepare/2,
     async_query/4,
     async_reusable_query/5,
@@ -13,7 +14,7 @@
     prepare/2,
     query/4,
     query/5,
-    receive_response/2,
+    receive_response/1,
     response/1,
     reusable_query/4,
     reusable_query/5
@@ -30,7 +31,15 @@ async_execute(StatementId, ConsistencyLevel, Flags, Pid) ->
     pid()) -> {ok, reference()} | {error, backlog_full}.
 
 async_execute(StatementId, Values, ConsistencyLevel, Flags, Pid) ->
-    async_call({execute, StatementId, Values, ConsistencyLevel, Flags}, Pid).
+    async_execute(StatementId, Values, ConsistencyLevel, Flags, Pid,
+        ?DEFAULT_TIMEOUT).
+
+-spec async_execute(statement_id(), [value()], consistency(), [flag()],
+    pid(), timeout()) -> {ok, reference()} | {error, backlog_full}.
+
+async_execute(StatementId, Values, ConsistencyLevel, Flags, Pid, Timeout) ->
+    async_call({execute, StatementId, Values, ConsistencyLevel, Flags},
+        Pid, Timeout).
 
 -spec async_prepare(query(), pid()) ->
     {ok, reference()} | {error, backlog_full}.
@@ -62,13 +71,14 @@ async_reusable_query(Query, ConsistencyLevel, Flags, Pid, Timeout) ->
 async_reusable_query(Query, Values, ConsistencyLevel, Flags, Pid, Timeout) ->
     case marina_cache:get(Query) of
         {ok, StatementId} ->
-            async_execute(StatementId, Values, ConsistencyLevel, Flags, Pid);
+            async_execute(StatementId, Values, ConsistencyLevel, Flags, Pid,
+                Timeout);
         {error, not_found} ->
             case prepare(Query, Timeout) of
                 {ok, StatementId} ->
                     marina_cache:put(Query, StatementId),
                     async_execute(StatementId, Values, ConsistencyLevel, Flags,
-                        Pid);
+                        Pid, Timeout);
                 {error, Reason} ->
                     {error, Reason}
             end
@@ -104,11 +114,11 @@ query(Query, ConsistencyLevel, Flags, Timeout) ->
 query(Query, Values, ConsistencyLevel, Flags, Timeout) ->
     call({query, Query, Values, ConsistencyLevel, Flags}, Timeout).
 
--spec receive_response(term(), non_neg_integer()) ->
+-spec receive_response(term()) ->
     {ok, term()} | {error, term()}.
 
-receive_response(RequestId, Timeout) ->
-    response(shackle:receive_response(RequestId, Timeout)).
+receive_response(RequestId) ->
+    response(shackle:receive_response(RequestId)).
 
 -spec response({ok, term()} | {error, term()}) ->
     {ok, term()} | {error, term()}.
@@ -156,7 +166,10 @@ reusable_query(Query, Values, ConsistencyLevel, Flags, Timeout) ->
 
 %% private
 async_call(Msg, Pid) ->
-    shackle:cast(?APP, Msg, Pid).
+    async_call(Msg, Pid, ?DEFAULT_TIMEOUT).
+
+async_call(Msg, Pid, Timeout) ->
+    shackle:cast(?APP, Msg, Pid, Timeout).
 
 call(Msg, Timeout) ->
     response(shackle:call(?APP, Msg, Timeout)).
