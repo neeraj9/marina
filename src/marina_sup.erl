@@ -22,7 +22,6 @@ start_link() ->
 init([]) ->
     BacklogSize = ?GET_ENV(backlog_size, ?DEFAULT_BACKLOG_SIZE),
     Ip = ?GET_ENV(ip, ?DEFAULT_IP),
-    Ip2 = ?GET_ENV(ip2, ?DEFAULT_IP),
     PoolSize = ?GET_ENV(pool_size, ?DEFAULT_POOL_SIZE),
     PoolStrategy = ?GET_ENV(pool_strategy, ?DEFAULT_POOL_STRATEGY),
     Port = ?GET_ENV(port, ?DEFAULT_PORT),
@@ -47,18 +46,23 @@ init([]) ->
         {pool_strategy, PoolStrategy}
     ]),
 
-    ok = shackle_pool:start(marina_2, ?CLIENT, [
-        {ip, Ip2},
-        {port, Port2},
-        {reconnect, Reconnect},
-        {reconnect_time_max, ReconnectTimeMax},
-        {reconnect_time_min, ReconnectTimeMin},
-        {socket_options, SocketOptions}
-    ], [
-        {backlog_size, BacklogSize},
-        {pool_size, PoolSize},
-        {pool_strategy, PoolStrategy}
-    ]),
+    case ?GET_ENV(ip2, undefined) of
+        undefined ->
+            ok;
+        Ip2 ->
+            ok = shackle_pool:start(marina_2, ?CLIENT, [
+                {ip, Ip2},
+                {port, Port2},
+                {reconnect, Reconnect},
+                {reconnect_time_max, ReconnectTimeMax},
+                {reconnect_time_min, ReconnectTimeMin},
+                {socket_options, SocketOptions}
+            ], [
+                {backlog_size, BacklogSize},
+                {pool_size, PoolSize},
+                {pool_strategy, PoolStrategy}
+            ])
+    end,
 
     marina_cache:init(),
 

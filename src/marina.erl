@@ -162,15 +162,18 @@ async_call(Msg, Pid) ->
 
 call(Msg, Timeout) ->
     Resp = response(shackle:call(marina_1, Msg, Timeout)),
-    case Resp of
-        {ok, _} -> ok;
-        {error, Reason} ->
-            shackle_utils:warning_msg(marina_1, "error: ~p~n", [Reason])
-    end,
+    error_msg(marina_1, Resp),
 
-    case response(shackle:call(marina_2, Msg, Timeout)) of
-        {ok, _} -> ok;
-        {error, Reason2} ->
-            shackle_utils:warning_msg(marina_2, "error: ~p~n", [Reason2])
+    case ?GET_ENV(ip2, undefined) of
+        undefined ->
+            ok;
+        _Ip2 ->
+            Resp2 = response(shackle:call(marina_2, Msg, Timeout)),
+            error_msg(marina_2, Resp2)
     end,
     Resp.
+
+error_msg(PoolName, {error, Reason}) ->
+    shackle_utils:warning_msg(PoolName, "error: ~p~n", [Reason]);
+error_msg(_PoolName, _Resp) ->
+    ok.

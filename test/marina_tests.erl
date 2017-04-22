@@ -5,6 +5,7 @@
 marina_test_() ->
     {setup,
         fun () -> setup([
+            {ip2, "127.0.0.1"},
             {keyspace, <<"test">>}
         ]) end,
         fun (_) -> cleanup() end,
@@ -30,6 +31,7 @@ marina_compression_test_() ->
     {setup,
         fun () -> setup([
             {compression, true},
+            {ip2, "127.0.0.1"},
             {keyspace, <<"test">>}
         ]) end,
         fun (_) -> cleanup() end,
