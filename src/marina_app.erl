@@ -33,4 +33,5 @@ start(_StartType, _StartArgs) ->
 
 stop(_State) ->
     shackle_pool:stop(?APP),
+    shackle_pool:stop(marina_2),
     ok.

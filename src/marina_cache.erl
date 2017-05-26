@@ -9,7 +9,7 @@
 ]).
 
 %% public
--spec erase(binary()) -> ok | {error, not_found}.
+-spec erase({atom(), binary()}) -> ok | {error, not_found}.
 
 erase(Key) ->
     try
@@ -20,7 +20,7 @@ erase(Key) ->
             {error, not_found}
     end.
 
--spec get(binary()) -> {ok, term()} | {error, not_found}.
+-spec get({atom(), binary()}) -> {ok, term()} | {error, not_found}.
 
 get(Key) ->
     try
@@ -40,7 +40,7 @@ init() ->
         {read_concurrency, true}
     ]).
 
--spec put(binary(), term()) -> ok.
+-spec put({atom(), binary()}, term()) -> ok.
 
 put(Key, Value) ->
     ets:insert(?ETS_TABLE_CACHE, {Key, Value}),

@@ -10,6 +10,7 @@
     async_query/6,
     async_reusable_query/5,
     async_reusable_query/6,
+    async_reusable_query_2/6,
     execute/5,
     prepare/2,
     query/5,
@@ -31,6 +32,13 @@ async_execute(StatementId, Values, ConsistencyLevel, Flags, Pid) ->
 
 async_execute(StatementId, Values, ConsistencyLevel, Flags, Pid, Timeout) ->
     async_call({execute, StatementId, Values, ConsistencyLevel, Flags},
+        Pid, Timeout).
+
+-spec async_execute_2(statement_id(), [value()], consistency(), [flag()],
+    pid(), timeout()) -> {ok, reference()} | error().
+
+async_execute_2(StatementId, Values, ConsistencyLevel, Flags, Pid, Timeout) ->
+    async_call_2({execute, StatementId, Values, ConsistencyLevel, Flags},
         Pid, Timeout).
 
 -spec async_prepare(query(), pid()) ->
@@ -69,14 +77,33 @@ async_reusable_query(Query, Values, ConsistencyLevel, Flags, Pid) ->
     pid(), timeout()) -> {ok, reference()} | error().
 
 async_reusable_query(Query, Values, ConsistencyLevel, Flags, Pid, Timeout) ->
-    case marina_cache:get(Query) of
+    case marina_cache:get({marina_1, Query}) of
         {ok, StatementId} ->
             async_execute(StatementId, Values, ConsistencyLevel, Flags,
                 Pid, Timeout);
         {error, not_found} ->
             case prepare(Query, Timeout) of
                 {ok, StatementId} ->
-                    marina_cache:put(Query, StatementId),
+                    marina_cache:put({marina_1, Query}, StatementId),
+                    async_execute(StatementId, Values, ConsistencyLevel, Flags,
+                        Pid, Timeout);
+                {error, Reason} ->
+                    {error, Reason}
+            end
+    end.
+
+-spec async_reusable_query_2(query(), [value()], consistency(), [flag()],
+    pid(), timeout()) -> {ok, reference()} | error().
+
+async_reusable_query_2(Query, Values, ConsistencyLevel, Flags, Pid, Timeout) ->
+    case marina_cache:get({marina_2, Query}) of
+        {ok, StatementId} ->
+            async_execute_2(StatementId, Values, ConsistencyLevel, Flags,
+                Pid, Timeout);
+        {error, not_found} ->
+            case prepare_2(Query, Timeout) of
+                {ok, StatementId} ->
+                    marina_cache:put({marina_2, Query}, StatementId),
                     async_execute(StatementId, Values, ConsistencyLevel, Flags,
                         Pid, Timeout);
                 {error, Reason} ->
@@ -95,6 +122,12 @@ execute(StatementId, Values, ConsistencyLevel, Flags, Timeout) ->
 
 prepare(Query, Timeout) ->
     call({prepare, Query}, Timeout).
+
+-spec prepare_2(query(), timeout()) ->
+    {ok, term()} | error().
+
+prepare_2(Query, Timeout) ->
+    call_2({prepare, Query}, Timeout).
 
 -spec query(query(), [value()], consistency(), [flag()], timeout()) ->
     {ok, term()} | error().
@@ -121,13 +154,13 @@ response({error, Reason}) ->
 
 reusable_query(Query, Values, ConsistencyLevel, Flags, Timeout) ->
     Timestamp = os:timestamp(),
-    case marina_cache:get(Query) of
+    case marina_cache:get({marina_1, Query}) of
         {ok, StatementId} ->
             Execute = execute(StatementId, Values, ConsistencyLevel, Flags,
                 Timeout),
             case Execute of
                 {error, {9472, _}} ->
-                    marina_cache:erase(Query),
+                    marina_cache:erase({marina_1, Query}),
                     Timeout3 = marina_utils:timeout(Timeout, Timestamp),
                     reusable_query(Query, Values, ConsistencyLevel, Flags,
                         Timeout3);
@@ -137,7 +170,7 @@ reusable_query(Query, Values, ConsistencyLevel, Flags, Timeout) ->
         {error, not_found} ->
             case prepare(Query, Timeout) of
                 {ok, StatementId} ->
-                    marina_cache:put(Query, StatementId),
+                    marina_cache:put({marina_1, Query}, StatementId),
                     Timeout2 = marina_utils:timeout(Timeout, Timestamp),
                     execute(StatementId, Values, ConsistencyLevel, Flags,
                         Timeout2);
@@ -152,3 +185,9 @@ async_call(Msg, Pid, Timeout) ->
 
 call(Msg, Timeout) ->
     response(shackle:call(?APP, Msg, Timeout)).
+
+async_call_2(Msg, Pid, Timeout) ->
+    shackle:cast(marina_2, Msg, Pid, Timeout).
+
+call_2(Msg, Timeout) ->
+    response(shackle:call(marina_2, Msg, Timeout)).

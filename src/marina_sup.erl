@@ -45,6 +45,24 @@ init([]) ->
         {pool_strategy, PoolStrategy}
     ]),
 
+    ok = case application:get_env(?APP, ip2) of
+        undefined ->
+            ok;
+        {ok, Ip2} ->
+            shackle_pool:start(marina_2, marina_2_client, [
+                {ip, Ip2},
+                {port, Port},
+                {reconnect, Reconnect},
+                {reconnect_time_max, ReconnectTimeMax},
+                {reconnect_time_min, ReconnectTimeMin},
+                {socket_options, SocketOptions}
+            ], [
+                {backlog_size, BacklogSize},
+                {pool_size, PoolSize},
+                {pool_strategy, PoolStrategy}
+            ])
+    end,
+
     marina_cache:init(),
 
     {ok, {{one_for_one, 5, 10}, []}}.
