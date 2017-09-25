@@ -32,5 +32,6 @@ start(_StartType, _StartArgs) ->
 -spec stop(term()) -> ok.
 
 stop(_State) ->
-    shackle_pool:stop(?APP),
+    shackle_pool:stop(marina_1),
+    shackle_pool:stop(marina_2),
     ok.

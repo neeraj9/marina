@@ -5,6 +5,7 @@
 marina_test_() ->
     {setup,
         fun () -> setup([
+            {ip2, "127.0.0.1"},
             {keyspace, <<"test">>}
         ]) end,
         fun (_) -> cleanup() end,
@@ -30,6 +31,7 @@ marina_compression_test_() ->
     {setup,
         fun () -> setup([
             {compression, true},
+            {ip2, "127.0.0.1"},
             {keyspace, <<"test">>}
         ]) end,
         fun (_) -> cleanup() end,
@@ -39,28 +41,29 @@ marina_compression_test_() ->
 %% tests
 async_execute_subtest() ->
     {ok, StatementId} = marina:prepare(?QUERY1, ?TIMEOUT),
-    {ok, Ref} = marina:async_execute(StatementId, [], ?CONSISTENCY_ONE,
+    {ok, [Ref | _]} = marina:async_execute(StatementId, [], ?CONSISTENCY_ONE,
         [], self()),
     {ok, _} = marina:receive_response(Ref).
 
 async_prepare_subtest() ->
-    {ok, Ref} = marina:async_prepare(?QUERY1, self()),
+    {ok, [Ref | _]} = marina:async_prepare(?QUERY1, self()),
     {ok, _} = marina:receive_response(Ref).
 
 async_query_subtest() ->
-    {ok, Ref} = marina:async_query(?QUERY1, [], ?CONSISTENCY_ONE, [], self()),
+    {ok, [Ref | _]} = marina:async_query(?QUERY1, [], ?CONSISTENCY_ONE,
+        [], self()),
     Response = marina:receive_response(Ref),
 
     ?assertEqual(?QUERY1_RESULT, Response).
 
 async_reusable_query_subtest() ->
-    {ok, Ref} = marina:async_reusable_query(?QUERY3, [], ?CONSISTENCY_ONE, [],
-        self(), ?TIMEOUT),
+    {ok, [Ref | _]} = marina:async_reusable_query(?QUERY3, [],
+        ?CONSISTENCY_ONE, [], self(), ?TIMEOUT),
     Response = marina:receive_response(Ref),
-    {ok, Ref2} = marina:async_reusable_query(?QUERY2, ?QUERY2_VALUES,
+    {ok, [Ref2 | _]} = marina:async_reusable_query(?QUERY2, ?QUERY2_VALUES,
         ?CONSISTENCY_ONE, [], self(), ?TIMEOUT),
     Response = marina:receive_response(Ref2),
-    {ok, Ref3} = marina:async_reusable_query(?QUERY2, ?QUERY2_VALUES,
+    {ok, [Ref3 | _]} = marina:async_reusable_query(?QUERY2, ?QUERY2_VALUES,
         ?CONSISTENCY_ONE, [], self(), ?TIMEOUT),
     Response = marina:receive_response(Ref3),
 
@@ -90,7 +93,7 @@ counters_subtest() ->
                  <<"counter_value">>, counter}],
             undefined},
         1,
-        [[<<"adgear.com">>, <<"home">>, <<0, 0, 0, 0, 0, 0, 0, 1>>]]
+        [[<<"adgear.com">>, <<"home">>, <<0, 0, 0, 0, 0, 0, 0, 2>>]]
     }}, Response).
 
 execute_subtest() ->

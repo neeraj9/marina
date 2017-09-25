@@ -20,53 +20,53 @@
 
 %% public
 -spec async_execute(statement_id(), [value()], consistency(), [flag()],
-    pid()) -> {ok, reference()} | error().
+    pid()) -> {ok, [shackle:request_id()]} | error().
 
 async_execute(StatementId, Values, ConsistencyLevel, Flags, Pid) ->
     async_execute(StatementId, Values, ConsistencyLevel, Flags,
         Pid, ?DEFAULT_TIMEOUT).
 
 -spec async_execute(statement_id(), [value()], consistency(), [flag()],
-    pid(), timeout()) -> {ok, reference()} | error().
+    pid(), timeout()) -> {ok, [shackle:request_id()]} | error().
 
 async_execute(StatementId, Values, ConsistencyLevel, Flags, Pid, Timeout) ->
     async_call({execute, StatementId, Values, ConsistencyLevel, Flags},
         Pid, Timeout).
 
 -spec async_prepare(query(), pid()) ->
-    {ok, reference()} | error().
+    {ok, [shackle:request_id()]} | error().
 
 async_prepare(Query, Pid) ->
     async_prepare(Query, Pid, ?DEFAULT_TIMEOUT).
 
 -spec async_prepare(query(), pid(), timeout()) ->
-    {ok, reference()} | error().
+    {ok, [shackle:request_id()]} | error().
 
 async_prepare(Query, Pid, Timeout) ->
     async_call({prepare, Query}, Pid, Timeout).
 
 -spec async_query(query(), [value()], consistency(), [flag()], pid()) ->
-    {ok, reference()} | error().
+    {ok, [shackle:request_id()]} | error().
 
 async_query(Query, Values, ConsistencyLevel, Flags, Pid) ->
     async_query(Query, Values, ConsistencyLevel, Flags,
         Pid, ?DEFAULT_TIMEOUT).
 
 -spec async_query(query(), [value()], consistency(), [flag()],
-    pid(), timeout()) -> {ok, reference()} | error().
+    pid(), timeout()) -> {ok, [shackle:request_id()]} | error().
 
 async_query(Query, Values, ConsistencyLevel, Flags, Pid, Timeout) ->
     async_call({query, Query, Values, ConsistencyLevel, Flags}, Pid, Timeout).
 
 -spec async_reusable_query(query(), [value()], consistency(), [flag()],
-    pid()) -> {ok, reference()} | error().
+    pid()) -> {ok, [shackle:request_id()]} | error().
 
 async_reusable_query(Query, Values, ConsistencyLevel, Flags, Pid) ->
     async_reusable_query(Query, Values, ConsistencyLevel, Flags,
         Pid, ?DEFAULT_TIMEOUT).
 
 -spec async_reusable_query(query(), [value()], consistency(), [flag()],
-    pid(), timeout()) -> {ok, reference()} | error().
+    pid(), timeout()) -> {ok, [shackle:request_id()]} | error().
 
 async_reusable_query(Query, Values, ConsistencyLevel, Flags, Pid, Timeout) ->
     case marina_cache:get(Query) of
@@ -148,7 +148,24 @@ reusable_query(Query, Values, ConsistencyLevel, Flags, Timeout) ->
 
 %% private
 async_call(Msg, Pid, Timeout) ->
-    shackle:cast(?APP, Msg, Pid, Timeout).
+    {ok, Ref1} = shackle:cast(marina_1, Msg, Pid, Timeout),
+    {ok, Ref2} = shackle:cast(marina_2, Msg, Pid, Timeout),
+    {ok, [Ref1, Ref2]}.
 
 call(Msg, Timeout) ->
-    response(shackle:call(?APP, Msg, Timeout)).
+    Resp = response(shackle:call(marina_1, Msg, Timeout)),
+    error_msg(marina_1, Resp),
+
+    case ?GET_ENV(ip2, undefined) of
+        undefined ->
+            ok;
+        _Ip2 ->
+            Resp2 = response(shackle:call(marina_2, Msg, Timeout)),
+            error_msg(marina_2, Resp2)
+    end,
+    Resp.
+
+error_msg(PoolName, {error, Reason}) ->
+    shackle_utils:warning_msg(PoolName, "error: ~p~n", [Reason]);
+error_msg(_PoolName, _Resp) ->
+    ok.
