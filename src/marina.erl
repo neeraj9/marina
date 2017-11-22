@@ -4,6 +4,7 @@
 -export([
     async_execute/5,
     async_execute/6,
+    async_execute_2/6,
     async_prepare/2,
     async_prepare/3,
     async_query/5,
@@ -12,11 +13,13 @@
     async_reusable_query/6,
     async_reusable_query_2/6,
     execute/5,
+    execute_2/5,
     prepare/2,
     query/5,
     receive_response/1,
     response/1,
-    reusable_query/5
+    reusable_query/5,
+    reusable_query_2/5
 ]).
 
 %% public
@@ -104,8 +107,8 @@ async_reusable_query_2(Query, Values, ConsistencyLevel, Flags, Pid, Timeout) ->
             case prepare_2(Query, Timeout) of
                 {ok, StatementId} ->
                     marina_cache:put({marina_2, Query}, StatementId),
-                    async_execute(StatementId, Values, ConsistencyLevel, Flags,
-                        Pid, Timeout);
+                    async_execute_2(StatementId, Values, ConsistencyLevel,
+                        Flags, Pid, Timeout);
                 {error, Reason} ->
                     {error, Reason}
             end
@@ -116,6 +119,12 @@ async_reusable_query_2(Query, Values, ConsistencyLevel, Flags, Pid, Timeout) ->
 
 execute(StatementId, Values, ConsistencyLevel, Flags, Timeout) ->
     call({execute, StatementId, Values, ConsistencyLevel, Flags}, Timeout).
+
+-spec execute_2(statement_id(), [value()], consistency(), [flag()],
+    timeout()) -> {ok, term()} | error().
+
+execute_2(StatementId, Values, ConsistencyLevel, Flags, Timeout) ->
+    call_2({execute, StatementId, Values, ConsistencyLevel, Flags}, Timeout).
 
 -spec prepare(query(), timeout()) ->
     {ok, term()} | error().
@@ -173,6 +182,36 @@ reusable_query(Query, Values, ConsistencyLevel, Flags, Timeout) ->
                     marina_cache:put({marina_1, Query}, StatementId),
                     Timeout2 = marina_utils:timeout(Timeout, Timestamp),
                     execute(StatementId, Values, ConsistencyLevel, Flags,
+                        Timeout2);
+                {error, Reason} ->
+                    {error, Reason}
+            end
+    end.
+
+-spec reusable_query_2(query(), [value()], consistency(), [flag()],
+    timeout()) -> {ok, term()} | error().
+
+reusable_query_2(Query, Values, ConsistencyLevel, Flags, Timeout) ->
+    Timestamp = os:timestamp(),
+    case marina_cache:get({marina_2, Query}) of
+        {ok, StatementId} ->
+            Execute = execute_2(StatementId, Values, ConsistencyLevel, Flags,
+                Timeout),
+            case Execute of
+                {error, {9472, _}} ->
+                    marina_cache:erase({marina_2, Query}),
+                    Timeout3 = marina_utils:timeout(Timeout, Timestamp),
+                    reusable_query_2(Query, Values, ConsistencyLevel, Flags,
+                        Timeout3);
+                Response ->
+                    Response
+            end;
+        {error, not_found} ->
+            case prepare(Query, Timeout) of
+                {ok, StatementId} ->
+                    marina_cache:put({marina_2, Query}, StatementId),
+                    Timeout2 = marina_utils:timeout(Timeout, Timestamp),
+                    execute_2(StatementId, Values, ConsistencyLevel, Flags,
                         Timeout2);
                 {error, Reason} ->
                     {error, Reason}
