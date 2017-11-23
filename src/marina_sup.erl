@@ -49,6 +49,7 @@ init([]) ->
         undefined ->
             ok;
         {ok, Ip2} ->
+            PoolSize2 = ?GET_ENV(pool_size2, ?DEFAULT_POOL_SIZE),
             shackle_pool:start(marina_2, marina_2_client, [
                 {ip, Ip2},
                 {port, Port},
@@ -58,7 +59,7 @@ init([]) ->
                 {socket_options, SocketOptions}
             ], [
                 {backlog_size, BacklogSize},
-                {pool_size, PoolSize},
+                {pool_size, PoolSize2},
                 {pool_strategy, PoolStrategy}
             ])
     end,
