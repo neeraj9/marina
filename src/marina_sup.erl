@@ -49,7 +49,9 @@ init([]) ->
         undefined ->
             ok;
         {ok, Ip2} ->
+            BacklogSize2 = ?GET_ENV(backlog_size2, ?DEFAULT_BACKLOG_SIZE),
             PoolSize2 = ?GET_ENV(pool_size2, ?DEFAULT_POOL_SIZE),
+
             shackle_pool:start(marina_2, marina_2_client, [
                 {ip, Ip2},
                 {port, Port},
@@ -58,7 +60,7 @@ init([]) ->
                 {reconnect_time_min, ReconnectTimeMin},
                 {socket_options, SocketOptions}
             ], [
-                {backlog_size, BacklogSize},
+                {backlog_size, BacklogSize2},
                 {pool_size, PoolSize2},
                 {pool_strategy, PoolStrategy}
             ])
