@@ -51,13 +51,7 @@ pack(Binary) ->
 sync_msg(Socket, Msg) ->
     case gen_tcp:send(Socket, Msg) of
         ok ->
-            case gen_tcp:recv(Socket, 0, ?DEFAULT_RECV_TIMEOUT) of
-                {ok, Msg2} ->
-                    {_Rest, [Frame | _]} = marina_frame:decode(Msg2),
-                    marina_body:decode(Frame);
-                {error, Reason} ->
-                    {error, Reason}
-            end;
+            rcv_buf(Socket, <<>>);
         {error, Reason} ->
             {error, Reason}
     end.
@@ -105,3 +99,17 @@ int_to_hex_list_pad(L, 0) ->
     L;
 int_to_hex_list_pad(L, Count) ->
     int_to_hex_list_pad([$0 | L], Count - 1).
+
+rcv_buf(Socket, Buffer) ->
+    case gen_tcp:recv(Socket, 0, ?DEFAULT_RECV_TIMEOUT) of
+        {ok, Msg} ->
+            Buffer2 = <<Buffer/binary, Msg/binary>>,
+            case marina_frame:decode(Buffer2) of
+                {_Rest, []} ->
+                    rcv_buf(Socket, Buffer2);
+                {_Rest, [Frame | _]} ->
+                    marina_body:decode(Frame)
+            end;
+        {error, Reason} ->
+            {error, Reason}
+    end.
