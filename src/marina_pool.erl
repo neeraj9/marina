@@ -109,7 +109,7 @@ peers(Ip, Port) ->
     end.
 
 select_system_peers(Socket) ->
-    Query = <<"select host_id, data_center, rpc_address from system.peers;">>,
+    Query = <<"select host_id, data_center, rpc_address, tokens from system.peers;">>,
     Msg = marina_request:query(0, [], Query, [], 1, [{skip_metadata, true}]),
     marina_utils:sync_msg(Socket, Msg).
 
