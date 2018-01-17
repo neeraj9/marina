@@ -3,7 +3,7 @@
 
 -export([
     init/0,
-    random/0,
+    node/0,
     start/0,
     stop/0
 ]).
@@ -19,9 +19,13 @@ init() ->
 -spec random() ->
     {ok, atom()} | {error, marina_not_started}.
 
-random() ->
-    case foil:lookup(?MODULE, node_count) of
-        {ok, NodeCount} ->
+node() ->
+
+    % {strategy, {random, NodeCount}}
+    % {strategy, token_aware}
+
+    case foil:lookup(?MODULE, strategy) of
+        {ok, {random, NodeCount}} ->
             Index = shackle_utils:random(NodeCount),
             case foil:lookup(?MODULE, {node, Index}) of
                 {ok, Name} ->
@@ -29,6 +33,9 @@ random() ->
                 {error, _Reason} ->
                     {error, marina_not_started}
             end;
+        {strategy, token_aware} ->
+            % TODO: !!
+            {ok, fixme};
         {error, _Reason} ->
             {error, marina_not_started}
     end.
@@ -37,7 +44,7 @@ random() ->
     ok | {error, marina_not_started | pool_already_started}.
 
 start() ->
-    case foil:lookup(?MODULE, node_count) of
+    case foil:lookup(?MODULE, strategy) of
         {ok, _} ->
             {error, pool_already_started};
         {error, foil_not_started} ->
@@ -47,6 +54,14 @@ start() ->
             Datacenter = ?GET_ENV(datacenter, ?DEFAULT_DATACENTER),
             Port = ?GET_ENV(port, ?DEFAULT_PORT),
             Nodes = nodes(BootstrapIps, Port, Datacenter),
+
+            Ring = lists:usort(lists:flatten(lists:map(fun ({A, _, C}) ->
+                {Tokens, <<>>} = marina_types:decode_long_string_set(C),
+                [{binary_to_integer(Token), A} || Token <- Tokens]
+            end, Nodes))),
+
+            % TODO: build ring module
+
             start_pools(Nodes);
         {error, module_not_found} ->
             {error, marina_not_started}
@@ -56,7 +71,7 @@ start() ->
     ok | {error, marina_not_started| pool_not_started}.
 
 stop() ->
-    case foil:lookup(?MODULE, node_count) of
+    case foil:lookup(?MODULE, strategy) of
         {ok, NodeCount} ->
             stop_pools(NodeCount);
         {error, foil_not_started} ->
@@ -70,10 +85,10 @@ stop() ->
 %% private
 filter_datacenter([], _Datacenter) ->
     [];
-filter_datacenter([[HostId, _Datacenter, RpcAddress] | T], undefined) ->
-    [{HostId, RpcAddress} | filter_datacenter(T, undefined)];
-filter_datacenter([[HostId, Datacenter, RpcAddress] | T], Datacenter) ->
-    [{HostId, RpcAddress} | filter_datacenter(T, Datacenter)];
+filter_datacenter([[HostId, _Datacenter, RpcAddress, Tokens] | T], undefined) ->
+    [{HostId, RpcAddress, Tokens} | filter_datacenter(T, undefined)];
+filter_datacenter([[HostId, Datacenter, RpcAddress, Tokens] | T], Datacenter) ->
+    [{HostId, RpcAddress, Tokens} | filter_datacenter(T, Datacenter)];
 filter_datacenter([_ | T], Datacenter) ->
     filter_datacenter(T, Datacenter).
 
@@ -100,18 +115,13 @@ peers(Ip, Port) ->
             Msg = marina_request:startup([]),
             case marina_utils:sync_msg(Socket, Msg) of
                 {ok, undefined} ->
-                    select_system_peers(Socket);
+                    system_peers(Socket);
                 {error, Reason} ->
                     {error, Reason}
             end;
         {error, Reason} ->
             {error, Reason}
     end.
-
-select_system_peers(Socket) ->
-    Query = <<"select host_id, data_center, rpc_address, tokens from system.peers;">>,
-    Msg = marina_request:query(0, [], Query, [], 1, [{skip_metadata, true}]),
-    marina_utils:sync_msg(Socket, Msg).
 
 start_pool(HostId, <<A, B, C, D>>) ->
     BacklogSize = ?GET_ENV(backlog_size, ?DEFAULT_BACKLOG_SIZE),
@@ -152,9 +162,9 @@ start_pools(Nodes) ->
     start_pools(Nodes, 1).
 
 start_pools([], Index) ->
-    foil:insert(?MODULE, node_count, Index - 1),
+    foil:insert(?MODULE, strategy, {random, Index - 1}),
     foil:load(?MODULE);
-start_pools([{HostId, RpcAddress} | T], Index) ->
+start_pools([{HostId, RpcAddress, _Tokens} | T], Index) ->
     case start_pool(HostId, RpcAddress) of
         {ok, Name} ->
             foil:insert(?MODULE, {node, Index}, Name),
@@ -164,10 +174,15 @@ start_pools([{HostId, RpcAddress} | T], Index) ->
     end.
 
 stop_pools(0) ->
-    foil:delete(?MODULE, node_count),
+    foil:delete(?MODULE, strategy),
     foil:load(?MODULE);
 stop_pools(N) ->
     {ok, Name} = foil:lookup(?MODULE, {node, N}),
     ok = shackle_pool:stop(Name),
     ok = foil:delete(?MODULE, {node, N}),
     stop_pools(N - 1).
+
+system_peers(Socket) ->
+    Query = <<"select host_id, data_center, rpc_address, tokens from system.peers;">>,
+    Msg = marina_request:query(0, [], Query, [], 1, [{skip_metadata, true}]),
+    marina_utils:sync_msg(Socket, Msg).
