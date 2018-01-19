@@ -5,9 +5,10 @@
     connect/2,
     ip_to_bin/1,
     pack/1,
+    string_to_uuid/1,
     sync_msg/2,
-    unpack/1,
     timeout/2,
+    unpack/1,
     uuid_to_string/1
 ]).
 
@@ -44,6 +45,40 @@ pack(Binary) ->
         {error, Reason} ->
             {error, Reason}
     end.
+
+string_to_uuid([N01, N02, N03, N04, N05, N06, N07, N08, $-, N09, N10, N11, N12,
+    $-, N13, N14, N15, N16, $-, N17, N18, N19, N20, $-, N21, N22, N23, N24, N25,
+    N26, N27, N28, N29, N30, N31, N32]) ->
+
+    B01 = hex_to_int(N01, N02),
+    B02 = hex_to_int(N03, N04),
+    B03 = hex_to_int(N05, N06),
+    B04 = hex_to_int(N07, N08),
+    B05 = hex_to_int(N09, N10),
+    B06 = hex_to_int(N11, N12),
+    B07 = hex_to_int(N13, N14),
+    B08 = hex_to_int(N15, N16),
+    B09 = hex_to_int(N17, N18),
+    B10 = hex_to_int(N19, N20),
+    B11 = hex_to_int(N21, N22),
+    B12 = hex_to_int(N23, N24),
+    B13 = hex_to_int(N25, N26),
+    B14 = hex_to_int(N27, N28),
+    B15 = hex_to_int(N29, N30),
+    B16 = hex_to_int(N31, N32),
+
+    <<B01, B02, B03, B04, B05, B06, B07, B08, B09, B10, B11, B12,
+        B13, B14, B15, B16>>.
+
+hex_to_int(C1, C2) ->
+    hex_to_int(C1) * 16 + hex_to_int(C2).
+
+hex_to_int(C) when $0 =< C, C =< $9 ->
+    C - $0;
+hex_to_int(C) when $A =< C, C =< $F ->
+    C - $A + 10;
+hex_to_int(C) when $a =< C, C =< $f ->
+    C - $a + 10.
 
 -spec sync_msg(inet:socket(), iodata()) ->
     {ok, term()} | {error, term()}.
