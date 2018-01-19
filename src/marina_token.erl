@@ -4,7 +4,7 @@
 % -include_lib("eunit/include/eunit.hrl").
 
 -export([
-    token/1
+    m3p/1
 ]).
 
 -define(INT64_MAX, 9223372036854775807).
@@ -13,10 +13,10 @@
 -define(INT64_OVF_OFFSET, 9223372036854775808).
 
 %% public
--spec token(binary()) ->
+-spec m3p(binary()) ->
     integer().
 
-token(Key) ->
+m3p(Key) ->
     <<Hash64:8/binary, _/binary>> = murmerl:murmur3_128(Key, 0, x64),
     trunc_int64(binary:decode_unsigned(Hash64, little)).
 
