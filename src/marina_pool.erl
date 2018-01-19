@@ -8,6 +8,9 @@
     stop/0
 ]).
 
+-define(LOCAL_QUERY, <<"select host_id, data_center, rpc_address, tokens from system.local;">>).
+-define(PEERS_QUERY, <<"select host_id, data_center, rpc_address, tokens from system.peers;">>).
+
 %% public
 -spec init() ->
     ok.
@@ -108,14 +111,9 @@ name(HostId) ->
     HostId2 = marina_utils:uuid_to_string(HostId),
     list_to_atom("marina_" ++ HostId2).
 
-nodes([], _Port, _Datacenter) ->
-    Ip = ?GET_ENV(ip, ?DEFAULT_IP),
-    [{<<0:128>>, marina_utils:ip_to_bin(Ip)}];
 nodes([Ip | T], Port, Datacenter) ->
     case peers(Ip, Port) of
-        {ok, {result, _ , _, []}} ->
-            [{<<0:128>>, marina_utils:ip_to_bin(Ip)}];
-        {ok, {result, _ , _, Rows}} ->
+        {ok, Rows} ->
             filter_datacenter(Rows, Datacenter);
         {error, _Reason} ->
             nodes(T, Port, Datacenter)
@@ -127,7 +125,9 @@ peers(Ip, Port) ->
             Msg = marina_request:startup([]),
             case marina_utils:sync_msg(Socket, Msg) of
                 {ok, undefined} ->
-                    system_peers(Socket);
+                    {ok, {result, _ , _, Rows}} = query(Socket, ?LOCAL_QUERY),
+                    {ok, {result, _ , _, Rows2}} = query(Socket, ?PEERS_QUERY),
+                    {ok, Rows ++ Rows2};
                 {error, Reason} ->
                     {error, Reason}
             end;
@@ -194,7 +194,6 @@ stop_pools(N) ->
     ok = foil:delete(?MODULE, {node, N}),
     stop_pools(N - 1).
 
-system_peers(Socket) ->
-    Query = <<"select host_id, data_center, rpc_address, tokens from system.peers;">>,
+query(Socket, Query) ->
     Msg = marina_request:query(0, [], Query, [], 1, [{skip_metadata, true}]),
     marina_utils:sync_msg(Socket, Msg).
