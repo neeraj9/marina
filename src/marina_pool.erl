@@ -16,7 +16,7 @@ init() ->
     foil:new(?MODULE),
     foil:load(?MODULE).
 
--spec random() ->
+-spec node() ->
     {ok, atom()} | {error, marina_not_started}.
 
 node() ->
@@ -60,12 +60,24 @@ start() ->
                 [{binary_to_integer(Token), A} || Token <- Tokens]
             end, Nodes))),
 
+            Ranges = ranges(Ring),
+            marina_compiler:ring(Ranges),
+
             % TODO: build ring module
 
             start_pools(Nodes);
         {error, module_not_found} ->
             {error, marina_not_started}
     end.
+
+ranges(Ring) ->
+    ranges(Ring, undefined, []).
+
+ranges([], LastToken, Acc) ->
+    [{_Range, HostId} | _] = Ranges = lists:reverse(Acc),
+    Ranges ++ [{{LastToken, undefined}, HostId}];
+ranges([{Token, HostId} | T], LastToken, Acc) ->
+    ranges(T, Token, [{{LastToken, Token}, HostId} | Acc]).
 
 -spec stop() ->
     ok | {error, marina_not_started| pool_not_started}.
